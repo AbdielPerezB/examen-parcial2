@@ -11,7 +11,7 @@
 #{"username":"Flash", "email":"Flas@buap.mx"}
 
 #En vez de Importar el framework fastapi, importamos APIRouter a nuestro entorno de trabajo
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 #Invocamos la entidad que hemos creado ****nEw
 from db.models.userClass import User 
 #Importamos la instancia que devolvera al usuario en formato user ***new
@@ -31,38 +31,33 @@ router= APIRouter()
 
 
 #Creamos un objeto en forma de lista con diferentes usuarios (Esto sería una base de datos)  
-users_list= []
+#users_list= []
 
 
 #***Get
-@router.get("/userdb/")
+
+@router.get("/userdb/", status_code=status.HTTP_200_OK)
 async def usersclass():
-    return (users_list)
+    users_list = []
+    try:
+        for userdb in connection.Computacion.user.find():
+            userJSON = user_schema(userdb)
+            users_list.append( User(**userJSON) )
+        return users_list
+    except:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
  # En el explorador colocamos la raiz de la ip: http://127.0.0.1:8000/usersclass/
+ 
 
 
 #***Get con Filtro Path
-@router.get("/userdb/{id}")
-async def usersclass(id:int):
-    users=filter (lambda user: user.id == id, users_list)  #Función de orden superior
+@router.get("/userdb/{username}")
+async def usersclass(username:str):
     try:
-        return list(users)[0]
+        new_user=  user_schema(connection.Computacion.user.find_one({"username":username}))
+        return User(**new_user)
     except:
-        return{"error":"No se ha encontrado el usuario"}
-    
-     # En el explorador colocamos la raiz de la ip: http://127.0.0.1:8000/usersclass/1
-
-
-#***Get con Filtro Query
-@router.get("/userdb/")
-async def usersclass(id:int):
-    users=filter (lambda user: user.id == id, users_list)  #Función de orden superior
-    try:
-        return list(users)[0]
-    except:
-        return{"error":"No se ha encontrado el usuario"}
-
- # En el explorador colocamos la raiz de la ip: http://127.0.0.1:8000/usersclass/?id=1
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
  
  
 #***Post
@@ -84,44 +79,34 @@ async def usersclass(user:User):
     
     #La base de datos devuelve un JSON debemos transformarlo a un objeto tipo user:
     return User(**new_user)
-    
 
+#Put
+@router.put("/userdb/{username}", response_model=User, status_code=status.HTTP_201_CREATED)
+async def usersclass(user: User, username:str):
+    newusername = user.username
+    full_name = user.full_name
+    email = user.email
+    disabled = user.disabled
+
+    filtro = {"username":username}
+    newvalues = {"$set":{"email":email,
+                         "full_name":full_name,
+                         "disabled":disabled,
+                         "username":newusername}}
+
+    try:
+        connection.Computacion.user.update_one(filtro,newvalues)
+        new_user =  user_schema(connection.Computacion.user.find_one({"username":newusername}))
+        return User(**new_user)
+    except:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     
-    #http://127.0.0.1:8000/usersclass/
-   
-   
-    #***Put
-@router.put("/userdb/")
-async def usersclass(user:User):
-    
-    found=False     #Usamos bandera found para verificar si hemos encontrado el usuario 
-    
-    for index, saved_user in enumerate(users_list):
-        if saved_user.id == user.id:  #Si el Id del usuario guardado es igual al Id del usuario nuevo
-           users_list[index] = user  #accedemos al indice de la lista que hemos encontrado y actualizamos con el nuevo usuario
-           found=True
-           
-    if not found:
-        return {"error":"No se ha actualizado el usuario"}
-    else:
-        return user
-    
-    #http://127.0.0.1:8000/usersclass/
-    
-    
-        #***Delete
-@router.delete("/userdb/{id}")
-async def usersclass(id:int):
-    
-    found=False     #Usamos bandera found para verificar si hemos encontrado el usuario 
-    
-    for index, saved_user in enumerate(users_list):
-        if saved_user.id ==id:  #Si el Id del usuario guardado es igual al Id del usuario nuevo
-           del users_list[index]  #Eliminamos al indice de la lista que hemos encontrado 
-           found=True
-           return "El registro se ha eliminado"
-       
-    if not found:
-        return {"error":"No se ha eliminado el usuario"}
-    
-    #http://127.0.0.1:8000/usersclass/1
+#Delete
+@router.delete("/userdb/{username}", status_code=status.HTTP_204_NO_CONTENT)
+async def usersclass(username:str):
+    try:
+        connection.Computacion.user.delete_one({"username":username})
+    except:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+
